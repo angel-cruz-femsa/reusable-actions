@@ -1,0 +1,29 @@
+# .github/actions/validate-openapi/action.yml
+name: 'Validate OpenAPI Spec with Spectral'
+description: 'Validates an OpenAPI YAML file using Spectral'
+inputs:
+  openapi_file:
+    description: 'Path to the OpenAPI YAML file to validate'
+    required: true
+  spectral_ruleset_path:
+    description: 'Path to the Spectral ruleset file (e.g., .spectral.yaml)'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Spectral CLI
+      shell: bash
+      run: npm install -g @stoplight/spectral-cli
+
+    - name: Run Spectral Lint
+      shell: bash
+      # The `inputs.openapi_file` and `inputs.spectral_ruleset_path` are passed
+      # as arguments to the 'spectral lint' command.
+      # `-f github-actions` formats the output for better integration with GitHub Actions.
+      run: spectral lint ${{ inputs.openapi_file }} --ruleset ${{ inputs.spectral_ruleset_path }} -f github-actions

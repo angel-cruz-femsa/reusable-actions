@@ -1,0 +1,373 @@
+# Spectral rules: https://github.com/stoplightio/spectral/blob/develop/docs/reference/openapi-rules.md
+# Poc open api generator: https://github.com/digitaltitransversal/PoC-OpenAPI-Generator
+extends:
+  - "spectral:oas"
+documentationUrl: https://digitalfemsa.atlassian.net/wiki/spaces/Arquitectu/pages/997589351/API+Governance
+
+aliases: 
+  PathItemObject:
+    - $.paths[*]
+  OperationObject:
+    - "#PathItemObject[get,put,post,delete,options,head,patch,trace]"
+  HeaderNames:
+    - "$..parameters.[?(@.in === 'header')].name"
+
+rules:
+  spin-valid-path-prefix-domain:
+    description: "Paths must start with a valid domain prefix (accounts, users, products, ...)"
+    severity: warn
+    given: "#PathItemObject~"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(\\/accounts|\\/agreements|\\/authentications|\\/authorizations|\\/billers|\\/campaigns|\\/cards|\\/compliances|\\/credits|\\/customers|\\/deposits|\\/documents|\\/frauds|\\/investments|\\/locations|\\/notifications|\\/offers|\\/onboarding|\\/partners|\\/payments|\\/policies|\\/products|\\/programs|\\/references|\\/refunds|\\/roles|\\/signatures|\\/statements|\\/subscriptions|\\/transfers|\\/users|\\/withdrawals)(\\/|$)"
+  spin-contact-field-required:
+    description: "OpenAPI object must have a contact field"
+    severity: error
+    given: "$"
+    then:
+      field: "info.contact"
+      function: truthy
+  spin-no-x-headers:
+    message: 'Header {{value}} should not start with "X-".'
+    description: "Headers starting with X- is an awkward convention which is entirely unnecessary."
+    severity: error
+    given: "#OperationObject.parameters[?(@.in === 'header')].name"
+    then:
+      function: pattern
+      functionOptions: 
+        notMatch: "^(x|X)-"
+  openapi-tags: error
+  operation-tags: error
+  operation-tag-defined: error
+  
+  spin-operation-summary:
+    description: "Each operation must have a summary property that is not empty and has at least 20 characters."
+    severity: error
+    given: "#OperationObject"
+    then:
+      - field: summary
+        function: truthy
+      - field: summary
+        function: length
+        functionOptions:
+          min: 20
+  spin-operation-description:
+    description: "Each operation must have a description property that is not empty and has at least 40 characters."
+    severity: error
+    given: "#OperationObject"
+    then:
+      - field: description
+        function: truthy
+      - field: description
+        function: length
+        functionOptions:
+          min: 40
+  spin-path-keys-no-trailing-slash:
+    description: "API paths must not end with a slash `/`."
+    severity: error
+    given: "$.paths[*]~"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: ".+\\/$"
+    message: "Path '{{property}}' must not end with a slash `/`."
+  spin-path-no-file-extensions:
+    description: "Paths must not contain file extensions."
+    message: "Path '{{property}}' must not contain a file extension."
+    severity: error
+    given: "#PathItemObject~"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "\\.[a-zA-Z0-9]+$"
+  spin-path-no-uppercase:
+    description: "API paths must not contain uppercase characters in path segments (except for path parameters)."
+    message: "{{property}} must not contain uppercase characters in path segments (except for path parameters)"
+    severity: error
+    given: "#PathItemObject~"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[^{}A-Z]*(?:\\{[^}]+\\}[^{}A-Z]*)*$"
+  spin-path-no-underscore:
+    description: "API paths must not contain underscores `_`."
+    message: "Path '{{property}}' must not contain underscores `_`."
+    severity: error
+    given: "#PathItemObject~"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: ".*_.*"
+
+  spin-paths-spinal-case:
+    description: "Path must use spinal-case format (lowercase letters, numbers, and hyphens only), with path variables in {curly braces}. Examples: /user-profiles/{userId}/account-settings"
+    severity: error
+    given: "#PathItemObject~"
+    then:
+      function: pattern
+      functionOptions:
+        match: '^\/([a-z0-9-]+|{[^{}]+})(\/([a-z0-9-]+|{[^{}]+}))*$|^\/$'
+    message: "Path '{{property}}' must use spinal-case format (lowercase letters, numbers, and hyphens only), with path variables in {curly braces}. Examples: /user-profiles/{userId}/account-settings"
+
+  spin-path-params-camel-case:
+    description: Ensures path parameters follow camelCase naming convention
+    severity: error
+    given: "#OperationObject.parameters[?(@.in === 'path')]"
+    then:
+      field: name
+      function: pattern
+      functionOptions:
+        match: '^[a-z][a-zA-Z0-9]*$'
+    message: "Path parameter names must use camelCase format. Examples: userId, orderId, itemName"
+  spin-query-params-camel-case:
+    description: Ensures query parameters follow camelCase naming convention
+    severity: error
+    given: "#OperationObject.parameters[?(@.in === 'query')]"
+    then:
+      field: name
+      function: pattern
+      functionOptions:
+        match: '^[a-z][a-zA-Z0-9]*$'
+    message: "Path parameter names must use camelCase format."
+  spin-properties-camelCase-alphanumeric:
+    description: All JSON Schema properties MUST follow fields-camelCase.
+    severity: error
+    recommended: true
+    given: "$.components.schemas..properties.*~"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        match: '^[a-z][a-zA-Z0-9]*$'
+    message: "Schema property names must use camelCase format. Examples: firstName, lastName, phoneNumber"
+  spin-header-capital-case:
+    description: Ensures header names follow Capital-Case format with hyphens
+    severity: error
+    given:
+      - '#HeaderNames'
+      - $.components.parameters[?(@.in === 'header')].name
+    then:
+      function: pattern
+      functionOptions:
+        match: '^[A-Z][a-z0-9]*(-[A-Z][a-z0-9]*)*$'
+    message: "Header names must use Capital-Case format with hyphens. Examples: Accept-Language, Content-Type, Request-ID"
+  spin-open-api-3.1.1-required:
+    description: "OpenAPI version must be 3.1.1 or higher"
+    severity: error
+    given: "$"
+    then:
+      field: "openapi"
+      function: pattern
+      functionOptions:
+        match: '^3\.(1\.[1-9]|[2-9]\.[0-9])|^4\.[0-9]+\.[0-9]+$'
+  spin-path-max-depth:
+    description: Ensures API paths do not exceed 3 domain levels in depth
+    severity: error
+    given: "#PathItemObject~"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: '^(\/({[^}]+}|[^\/{}]+\/)*)(([^\/{}]+)(\/|\/{[^}]+}\/|\/)([^\/{}]+)(\/|\/{[^}]+}\/|\/)([^\/{}]+)(\/|\/{[^}]+}\/|\/)([^\/{}]+).*)'
+    message: "Path must not exceed 3 domain levels in depth (excluding path parameters). Example: '/users/{userId}/transactions/{transactionId}' is valid, but '/users/settings/profiles/details' exceeds the limit."
+  spin-x-language-present:
+    description: Ensures that the OpenAPI specification has an x-language attribute within info object
+    severity: error
+    given: $.info
+    then:
+      field: x-language
+      function: truthy
+  spin-x-language-valid-value:
+    description: The info.x-language attribute has not one of the allowed values (spring, aspnetcore, python-flask, go-server, nodejs-express-server, none).
+    severity: warn
+    given: $.info
+    then:
+      field: x-language
+      function: enumeration
+      functionOptions:
+        values:
+          - spring
+          - aspnetcore
+          - python-flask
+          - go-server
+          - nodejs-express-server
+          - none
+  spin-idempotency-key-required:
+    description: POST and PATCH operations must include Idempotency-Key header
+    severity: warn
+    given:
+      - $.paths[*][post,patch]
+    then:
+      - field: parameters
+        function: schema
+        functionOptions:
+          schema:
+            type: array
+            contains:
+              type: object
+              properties:
+                name:
+                  const: Idempotency-Key
+                in:
+                  const: header
+                required:
+                  const: true
+              required: [name, in, required]
+      - field: parameters
+        function: defined
+  spin-api-visibility-header-required:
+    description: All operations should include Api-Visibility header with value 'Private' or 'Public'
+    severity: warn
+    given: 
+      - $.paths[*][post,patch,get,delete,put]
+    then:
+      - field: parameters
+        function: schema
+        functionOptions:
+          schema:
+            type: array
+            contains:
+              type: object
+              properties:
+                name:
+                  const: Api-Visibility
+                in:
+                  const: header
+                required:
+                  const: true
+              required: [name, in, required]
+      - field: parameters
+        function: defined
+  spin-response-200-description:
+    description: Ensures that 200 responses have "OK" as description
+    message: "HTTP 200 response should have description 'OK'"
+    severity: warn
+    given: $.paths[*][*].responses['200']
+    then:
+      field: description
+      function: pattern
+      functionOptions:
+        match: ^OK$
+
+  spin-response-201-description:
+    description: Ensures that 201 responses have "Created" as description
+    message: "HTTP 201 response should have description 'Created'"
+    severity: warn
+    given: $.paths[*][*].responses['201']
+    then:
+      field: description
+      function: pattern
+      functionOptions:
+        match: ^Created$
+
+  spin-spin-response-204-description:
+    description: Ensures that 204 responses have "Deleted" as description
+    message: "HTTP 204 response should have description 'Deleted'"
+    severity: warn
+    given: $.paths[*][*].responses['204']
+    then:
+      field: description
+      function: pattern
+      functionOptions:
+        match: ^Deleted$
+
+  spin-info-license-valid:
+    description: "License must be either Spin by OXXO © 2024 Todos los derechos reservados or © Spin Premia, 2023 with correct URL"
+    severity: error
+    given: "$.info.license"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          properties:
+            name:
+              type: string
+              enum: ["Spin by OXXO © 2024 Todos los derechos reservados", "© Spin Premia, 2023"]
+            url:
+              type: string
+          required: [name, url]
+          if:
+            properties:
+              name:
+                const: "Spin by OXXO © 2024 Todos los derechos reservados"
+            required: [name]
+          then:
+            properties:
+              url:
+                const: "https://spinbyoxxo.com.mx/"
+          else:
+            properties:
+              url:
+                const: "http://spinpremia.com/"
+    message: "License configuration is invalid. Must be either 'Spin by OXXO © 2024 Todos los derechos reservados' with URL 'https://spinbyoxxo.com.mx/' or '© Spin Premia, 2023' with URL 'http://spinpremia.com/'"
+
+
+  spin-x-bu-present:
+    description: Ensures that the OpenAPI specification has an x-bu attribute within info object
+    severity: warn
+    given: $.info
+    then:
+      field: x-bu
+      function: truthy
+
+  spin-x-pod-present:
+    description: Ensures that the OpenAPI specification has an x-pod attribute within info object
+    severity: warn
+    given: $.info
+    then:
+      field: x-pod
+      function: truthy
+
+  spin-x-project-present:
+    description: Ensures that the OpenAPI specification has an x-project attribute within info object
+    severity: warn
+    given: $.info
+    then:
+      field: x-project
+      function: truthy
+
+  spin-x-development-type-present:
+    description: Ensures that the OpenAPI specification has an x-development-type attribute within info object
+    severity: warn
+    given: $.info
+    then:
+      field: x-development-type
+      function: truthy
+
+  spin-x-collaborators-present:
+    description: Ensures that the OpenAPI specification has an x-collaborators attribute within info object
+    severity: warn
+    given: $.info
+    then:
+      field: x-collaborators
+      function: truthy
+      
+  spin-valid-attribute-names:
+    description: "Ensures schema properties only use pre-approved attribute names"
+    severity: warn
+    given: "$.components.schemas..properties.*~"
+    then:
+      field: "@key"
+      function: enumeration
+      functionOptions:
+        values:
+          - page
+          - limit
+          - sortBy
+          - sortOrder
+          - totalItems
+          - itemCount
+          - itemsPerPage
+          - totalPages
+          - currentPage
+          - first
+          - previous
+          - next
+          - last
+          - data
+          - createdAt
+          - updatedAt
+          - id
+          - name
+    message: "Property '{{property}}' is not in the list of approved attribute names"
